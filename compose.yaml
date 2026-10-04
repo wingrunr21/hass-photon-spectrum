@@ -1,0 +1,10 @@
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: photon-spectrum-test
+    ports:
+      - "8123:8123"
+    volumes:
+      - ./.hass-config:/config
+      - ./custom_components:/config/custom_components:ro
+    restart: unless-stopped
