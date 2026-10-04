@@ -1,0 +1,22 @@
+syntax = "proto3";
+package photon.imessage.v1;
+
+// Projection of buf.build/photon-hq/imessage:295f823a6a8649c9ab5bfab017b64f82.
+// Field numbers and service path must match the published contract.
+message SendTextMessageRequest {
+  string chat_guid = 1;
+  string text = 2;
+  optional string client_message_id = 100;
+}
+
+message Message {
+  string guid = 1;
+}
+
+message MessageResponse {
+  Message message = 1;
+}
+
+service MessageService {
+  rpc SendTextMessage(SendTextMessageRequest) returns (MessageResponse);
+}

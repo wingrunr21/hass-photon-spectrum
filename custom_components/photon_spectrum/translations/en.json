@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Photon Spectrum iMessage",
+        "description": "Configure one notification target for a shared-line Photon project. Enter one or more phone numbers separated by commas or newlines.",
+        "data": {
+          "project_id": "Photon project ID",
+          "project_secret": "Photon project secret",
+          "recipients": "Recipients (+country code, separated by commas)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not authenticate or this project does not have a shared iMessage line",
+      "invalid_project_id": "Enter a valid Photon project UUID",
+      "invalid_recipients": "Enter at least one valid international phone number"
+    },
+    "abort": {
+      "already_configured": "This Photon project is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Recipients",
+        "data": {
+          "recipients": "Recipients (+country code, separated by commas)"
+        }
+      }
+    },
+    "error": {
+      "invalid_recipients": "Enter at least one valid international phone number"
+    }
+  }
+}
