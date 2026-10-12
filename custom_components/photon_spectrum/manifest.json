@@ -6,6 +6,7 @@
   "issue_tracker": "https://github.com/wingrunr21/hass-photon-spectrum/issues",
   "codeowners": ["@wingrunr21"],
   "config_flow": true,
+  "dependencies": ["webhook"],
   "iot_class": "cloud_push",
   "requirements": ["grpcio>=1.75.1,<2", "protobuf>=6.31.1,<7"]
 }

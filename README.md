@@ -5,7 +5,7 @@
 
 # Photon Spectrum for Home Assistant
 
-A custom integration for [Photon Spectrum](https://photon.codes/docs/spectrum-ts/introduction) **shared-line iMessage** notifications. Each Photon project gets one `notify` entity, which sends a separate DM to each configured recipient by default. Only iMessage is supported here; use Home Assistant's existing integrations for other messaging channels where available. Dedicated lines, groups, and incoming messages are not supported.
+A custom integration for [Photon Spectrum](https://photon.codes/docs/spectrum-ts/introduction) **shared-line iMessage** notifications. Each Photon project gets one `notify` entity, which sends a separate DM to each configured recipient by default. Only iMessage is supported here; use Home Assistant's existing integrations for other messaging channels where available. Signed Photon webhooks also support incoming-message automations. Dedicated lines and group messaging are not supported.
 
 ## Setup
 
@@ -60,6 +60,58 @@ Use the entity ID shown by Home Assistant; it may differ from the examples. A ti
 Photon shared lines only send to recipients registered as shared users of the same project and reachable through iMessage. Home Assistant stores the project credentials in its config entry storage, so protect your configuration and backups.
 
 If a registered user gets `PERMISSION_DENIED: [spectrum-imessage] Target not allowed for this project`, ask them to text their assigned Photon shared-line number first, then retry. This [resolved the rejection in our test](https://agents.stackoverflow.com/tils/2d818b69-8773-4f7c-b0e6-08b6101479cc) even though the user was already registered. If it still fails, compare their iMessage handle with [Photon's debug line](https://debug.photon.codes) and ask Photon support to inspect the project's outbound policy.
+
+## Receive signed webhooks
+
+In **Settings → Devices & services → Photon Spectrum → Configure**, copy the project's **Webhook path** (`/api/webhook/...`) shown above the fields and append it to the public HTTPS URL that reaches your Home Assistant (Nabu Casa or your own reverse proxy). Photon cannot deliver to `localhost`, private addresses, plain HTTP, or redirecting URLs.
+
+Register that URL in the [Photon webhook dashboard](https://photon.codes/docs/webhooks/managing-webhooks). Photon shows a separate 64-character signing secret only once. In **Settings → Devices & services → Photon Spectrum → Configure**, paste that secret into **Webhook signing secret**. Leave it blank when changing recipients to keep the saved secret; check **Disable webhook** to remove it. The path remains visible even when reception is disabled. This does not delete the webhook in Photon; delete or disable it there to stop delivery attempts. Home Assistant may acknowledge an unregistered webhook with HTTP 200 without processing it.
+
+### Trigger on incoming messages
+
+On Home Assistant versions supporting integration-specific triggers (verified with 2026.9.4), paste this example into the automation editor's **Edit in YAML** view. The trigger works in YAML, but it may not appear in the browser's trigger picker. No separate event entity or device is needed. Replace both occurrences of `notify.imessage` with your project's notify entity ID.
+
+```yaml
+alias: Photon - Message Received
+description: ''
+triggers:
+  - trigger: photon_spectrum.message_received
+    target:
+      entity_id: notify.imessage
+conditions: []
+actions:
+  - action: logbook.log
+    data:
+      name: Photon
+      message: '{{ trigger.sender }}: {{ trigger.text }}'
+      entity_id: notify.imessage
+mode: single
+```
+
+The action's `entity_id` associates the log entry with the iMessage entity, so it appears in that entity's activity view as well as the main Activity/Logbook view.
+
+The trigger exposes `entity_id`, `project_id`, `text`, `sender`, `message_id`, `space_id`, and `timestamp` directly on `trigger`. It handles only inbound iMessage text messages; outbound messages, attachments, and other webhook events do not fire it. Identical messages still trigger separately. Message data stays out of entity state, but Home Assistant's recorder can store raw webhook events, and automation traces and actions may record message content and sender phone numbers.
+
+This Home Assistant trigger API is still experimental and may change. If the trigger is unavailable on your version, use the raw event below instead.
+
+### Raw webhook events
+
+Verified deliveries fire a `photon_spectrum_webhook` Home Assistant event. Use an event trigger, not a stock webhook trigger, to access `trigger.event.data.payload`:
+
+```yaml
+triggers:
+  - trigger: event
+    event_type: photon_spectrum_webhook
+    event_data:
+      project_id: "<your Photon project UUID>"
+actions:
+  - action: logbook.log
+    data:
+      name: Photon Spectrum
+      message: "{{ trigger.event.data.payload.event }}"
+```
+
+The handler checks the exact request bytes, Photon's signature, and a five-minute timestamp window before firing the event. Bad signatures never reach automations. A valid request may still be replayed within that window, so make side-effecting automations idempotent if duplicates matter. Rotate a leaked secret by deleting and re-registering the Photon webhook, then updating the signing secret in **Configure**. Do not use the Photon project secret in this field.
 
 ## Docker test instance
 

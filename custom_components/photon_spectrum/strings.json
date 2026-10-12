@@ -23,14 +23,24 @@
   "options": {
     "step": {
       "init": {
-        "title": "Recipients",
+        "title": "Recipients and webhook",
+        "description": "Webhook path: `{webhook_path}`\n\nAppend this path to your public HTTPS address and register the URL with Photon, then paste its one-time signing secret below. Leave the secret blank to keep the current one.",
         "data": {
-          "recipients": "Recipients (+country code, separated by commas)"
+          "recipients": "Recipients (+country code, separated by commas)",
+          "webhook_signing_secret": "Webhook signing secret",
+          "disable_webhook": "Disable webhook and remove its signing secret"
         }
       }
     },
     "error": {
-      "invalid_recipients": "Enter at least one valid international phone number"
+      "invalid_recipients": "Enter at least one valid international phone number",
+      "invalid_webhook_secret": "Enter the 64-character webhook signing secret from Photon"
+    }
+  },
+  "triggers": {
+    "message_received": {
+      "name": "iMessage received",
+      "description": "Triggers when one or more Photon notification targets receive an iMessage text."
     }
   }
 }

@@ -7,8 +7,10 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import selector
 
 from .client import SharedLineClient
+from .webhook import webhook_path
 
 DOMAIN = "photon_spectrum"
 RECIPIENT = re.compile(r"\+[1-9][0-9]{7,14}\Z")
@@ -83,20 +85,26 @@ class PhotonSpectrumConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class PhotonSpectrumOptionsFlow(config_entries.OptionsFlow):
-    """Edit the project-level notification recipients."""
+    """Edit recipients and the project's webhook signing secret."""
 
     async def async_step_init(self, user_input=None):
-        """Validate and save the recipient list."""
+        """Validate and save project options."""
         errors = {}
         if user_input is not None:
             try:
                 recipients = parse_recipients(user_input["recipients"])
             except ValueError:
                 errors["recipients"] = "invalid_recipients"
-            else:
-                return self.async_create_entry(
-                    title="", data={"recipients": recipients}
-                )
+            secret = user_input.get("webhook_signing_secret", "").strip()
+            if secret and (len(secret) != 64 or not secret.isascii()):
+                errors["webhook_signing_secret"] = "invalid_webhook_secret"
+            if not errors:
+                options = {**self.config_entry.options, "recipients": recipients}
+                if user_input.get("disable_webhook"):
+                    options.pop("webhook_signing_secret", None)
+                elif secret:
+                    options["webhook_signing_secret"] = secret
+                return self.async_create_entry(title="", data=options)
 
         current = self.config_entry.options.get(
             "recipients", self.config_entry.data["recipients"]
@@ -104,7 +112,16 @@ class PhotonSpectrumOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
-                {vol.Required("recipients", default=", ".join(current)): str}
+                {
+                    vol.Required("recipients", default=", ".join(current)): str,
+                    vol.Optional("webhook_signing_secret"): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.PASSWORD
+                        )
+                    ),
+                    vol.Optional("disable_webhook", default=False): bool,
+                }
             ),
             errors=errors,
+            description_placeholders={"webhook_path": webhook_path(self.config_entry)},
         )

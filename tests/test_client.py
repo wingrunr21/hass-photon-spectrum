@@ -11,6 +11,7 @@ import voluptuous as vol
 from homeassistant.components.notify import DATA_COMPONENT, NotifyEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.service import async_get_cached_service_description
 from voluptuous_serialize import convert
@@ -156,9 +157,17 @@ def test_recipient_options():
         flow.hass.config_entries.async_get_known_entry.return_value = MagicMock(
             options={}, data={"recipients": ["+15551234567"]}
         )
+        flow.hass.config_entries.async_get_known_entry.return_value.entry_id = "project-one"
         result = await flow.async_step_init()
         assert "data_schema" in result
-        assert convert(result["data_schema"])
+        assert result.get("description_placeholders") == {
+            "webhook_path": "/api/webhook/photon_spectrum_project-one"
+        }
+        fields = convert(result["data_schema"], custom_serializer=cv.custom_serializer)
+        assert isinstance(fields, list)
+        assert next(
+            field for field in fields if field["name"] == "webhook_signing_secret"
+        )["selector"]["text"]["type"] == "password"
         result = await flow.async_step_init(
             {"recipients": "+15551234567, +15557654321"}
         )
@@ -166,6 +175,27 @@ def test_recipient_options():
         assert result["data"] == {
             "recipients": ["+15551234567", "+15557654321"]
         }
+        entry = flow.hass.config_entries.async_get_known_entry.return_value
+        entry.options = result["data"]
+        result = await flow.async_step_init(
+            {"recipients": "+15551234567", "webhook_signing_secret": "a" * 64}
+        )
+        assert "data" in result
+        assert result["data"]["webhook_signing_secret"] == "a" * 64
+        entry.options = result["data"]
+        result = await flow.async_step_init({"recipients": "+15551234567"})
+        assert "data" in result
+        assert result["data"]["webhook_signing_secret"] == "a" * 64
+        result = await flow.async_step_init(
+            {"recipients": "+15551234567", "webhook_signing_secret": "short"}
+        )
+        assert "errors" in result and result["errors"] is not None
+        assert result["errors"]["webhook_signing_secret"] == "invalid_webhook_secret"
+        result = await flow.async_step_init(
+            {"recipients": "+15551234567", "disable_webhook": True}
+        )
+        assert "data" in result
+        assert "webhook_signing_secret" not in result["data"]
 
     asyncio.run(check())
 
