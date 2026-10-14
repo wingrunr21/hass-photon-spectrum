@@ -11,7 +11,7 @@ A custom integration for [Photon Spectrum](https://photon.codes/docs/spectrum-ts
 
 ### Install with HACS
 
-This repository is not in HACS's default list. Add it as a [custom repository](https://www.hacs.xyz/docs/faq/custom_repositories/) once it is public on GitHub:
+This repository is not in HACS's default list. Add it as a [custom repository](https://www.hacs.xyz/docs/faq/custom_repositories/):
 
 1. Install [HACS](https://www.hacs.xyz/docs/use/) if you haven't already.
 2. In Home Assistant, open **HACS → ⋮ → Custom repositories**.
@@ -20,16 +20,17 @@ This repository is not in HACS's default list. Add it as a [custom repository](h
 
 ### Manual install
 
-Copy `custom_components/photon_spectrum` into your Home Assistant `config/custom_components/` directory and restart Home Assistant. The Docker test instance below already mounts the integration.
+Copy `custom_components/photon_spectrum` into your Home Assistant `config/custom_components/` directory and restart Home Assistant.
 
 ### Configure
 
-1. Create a Photon project with a shared cloud iMessage line and get its project ID and project secret.
+1. Create a project in your [Photon Dashboard](https://app.photon.codes/dashboard) and get its project ID and project secret. Also make sure you add your recipient phone numbers to the Users section of your project.
 2. Go to **Settings → Devices & services → Add integration → Photon Spectrum**. Enter the project ID, project secret, and one or more `+`-prefixed phone numbers separated by commas (for example `+15551234567, +15557654321`). Use **Configure** to change the recipients later.
 
 ## Send a notification
 
-In **Developer tools → Actions**, call `notify.send_message` targeting your Photon Spectrum notify entity. Example automation action:
+You can use the `notify.send_message` action to send a notification:
+
 
 ```yaml
 - action: notify.send_message
@@ -40,36 +41,33 @@ In **Developer tools → Actions**, call `notify.send_message` targeting your Ph
     message: Front door opened
 ```
 
-To override recipients for one message, call `notify.photon_spectrum` on the project's notify entity. `data.target` replaces the configured recipients; omit it to use the defaults:
+To override recipients for one message, use `data.target` to replace the configured recipients:
 
 ```yaml
 - action: notify.photon_spectrum
   target:
     entity_id: notify.photon_spectrum_imessage
   data:
+    title: Home Assistant
     message: Front door opened
     target:
       - "+15551234567"
       - "+15557654321"
 ```
 
-Phone numbers must use international `+` format; an empty or invalid override is rejected.
-
-Use the entity ID shown by Home Assistant; it may differ from the examples. A title appears above the message on its own line. The integration attempts every recipient before reporting failures; successful sends are not rolled back.
-
-Photon shared lines only send to recipients registered as shared users of the same project and reachable through iMessage. Home Assistant stores the project credentials in its config entry storage, so protect your configuration and backups.
-
-If a registered user gets `PERMISSION_DENIED: [spectrum-imessage] Target not allowed for this project`, ask them to text their assigned Photon shared-line number first, then retry. This [resolved the rejection in our test](https://agents.stackoverflow.com/tils/2d818b69-8773-4f7c-b0e6-08b6101479cc) even though the user was already registered. If it still fails, compare their iMessage handle with [Photon's debug line](https://debug.photon.codes) and ask Photon support to inspect the project's outbound policy.
-
 ## Receive signed webhooks
 
-In **Settings → Devices & services → Photon Spectrum → Configure**, copy the project's **Webhook path** (`/api/webhook/...`) shown above the fields and append it to the public HTTPS URL that reaches your Home Assistant (Nabu Casa or your own reverse proxy). Photon cannot deliver to `localhost`, private addresses, plain HTTP, or redirecting URLs.
+In **Settings → Devices & services → Photon Spectrum → Configure**, copy the project's **Webhook path** (`/api/webhook/...`) shown above the fields and append it to the public HTTPS URL that reaches your Home Assistant (Nabu Casa or your own reverse proxy).
 
-Register that URL in the [Photon webhook dashboard](https://photon.codes/docs/webhooks/managing-webhooks). Photon shows a separate 64-character signing secret only once. In **Settings → Devices & services → Photon Spectrum → Configure**, paste that secret into **Webhook signing secret**. Leave it blank when changing recipients to keep the saved secret; check **Disable webhook** to remove it. The path remains visible even when reception is disabled. This does not delete the webhook in Photon; delete or disable it there to stop delivery attempts. Home Assistant may acknowledge an unregistered webhook with HTTP 200 without processing it.
+Register that URL in the [Photon webhook dashboard](https://photon.codes/docs/webhooks/managing-webhooks). Upon registration, Photon will show a separate 64-character signing secret. In **Settings → Devices & services → Photon Spectrum → Configure**, paste that secret into **Webhook signing secret**. Leave it blank when changing recipients to keep the saved secret; check **Disable webhook** to remove it.
+
+The webhook path remains visible even when reception is disabled. Disabling the webhook does not delete the webhook in your Photon project; delete or disable it there to stop delivery attempts. Home Assistant may acknowledge an unregistered webhook with HTTP 200 without processing it.
 
 ### Trigger on incoming messages
 
-On Home Assistant versions supporting integration-specific triggers (verified with 2026.9.4), paste this example into the automation editor's **Edit in YAML** view. The trigger works in YAML, but it may not appear in the browser's trigger picker. No separate event entity or device is needed. Replace both occurrences of `notify.imessage` with your project's notify entity ID.
+On Home Assistant versions supporting integration-specific triggers (confirmed on 2026.9.4+), choose **Add trigger → By target → your Photon iMessage notify entity → iMessage received**.
+
+Alternatively, paste this example into the automation editor's **Edit in YAML** view. Replace both occurrences of `notify.imessage` with your project's notify entity ID.
 
 ```yaml
 alias: Photon - Message Received
@@ -113,7 +111,13 @@ actions:
 
 The handler checks the exact request bytes, Photon's signature, and a five-minute timestamp window before firing the event. Bad signatures never reach automations. A valid request may still be replayed within that window, so make side-effecting automations idempotent if duplicates matter. Rotate a leaked secret by deleting and re-registering the Photon webhook, then updating the signing secret in **Configure**. Do not use the Photon project secret in this field.
 
-## Docker test instance
+## Troubleshooting
+
+If a registered user gets `PERMISSION_DENIED: [spectrum-imessage] Target not allowed for this project`, ask them to text their assigned Photon shared-line number first, then retry. This [resolved the rejection in our test](https://agents.stackoverflow.com/tils/2d818b69-8773-4f7c-b0e6-08b6101479cc) even though the user was already registered. If it still fails, compare their iMessage handle with [Photon's debug line](https://debug.photon.codes) and ask Photon support to inspect the project's outbound policy.
+
+## Developing
+
+### Docker test instance
 
 ```sh
 docker compose up -d
@@ -128,7 +132,7 @@ docker compose logs -f homeassistant
 
 After changing `strings.json`, restart and refresh the browser. `docker compose down` stops the container without removing `.hass-config/`.
 
-## Checks
+### Checks
 
 For local unit checks (Python 3.13):
 
@@ -147,8 +151,6 @@ npm ci --prefix tests/sdk_parity
 
 The comparison checks token requests, shared DM GUIDs, and the published gRPC request fields. It does not test live delivery or Photon's recipient policy.
 
-The [SDK parity workflow](.github/workflows/sdk-parity.yml) runs daily at 07:17 UTC and can also be started manually. It installs the latest published Photon packages without changing the local lockfile, so SDK releases can expose drift.
-
 The protobuf files in `custom_components/photon_spectrum/proto/` are a minimal projection of [Photon's published iMessage schema](https://buf.build/photon-hq/imessage) pinned to the revision named in `message.proto`. Regenerate the Python bindings with `grpcio-tools==1.75.1` when updating that contract:
 
 ```sh
@@ -156,6 +158,3 @@ The protobuf files in `custom_components/photon_spectrum/proto/` are a minimal p
 ```
 
 This integration is not affiliated with or endorsed by Photon. Its iMessage send path is a Python port of [Photon's TypeScript Spectrum SDK](https://github.com/photon-hq/spectrum-ts), not the full SDK.
-
-The icons in `custom_components/photon_spectrum/brand/` use [Photon's Symbol](https://photon.codes/brand) (© Photon) for identification. Home Assistant 2026.3+ loads them locally.
-
